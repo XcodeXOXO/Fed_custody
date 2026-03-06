@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/hyperledger/fabric-chaincode-go/pkg/cid"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
+	"github.com/hyperledger/fabric-chaincode-go/shimtest"
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -37,14 +37,17 @@ func (m *MockIdentity) GetMSPID() (string, error) {
 }
 
 func TestBFTThreshold(t *testing.T) {
-	stub := shim.NewMockStub("governance", nil)
+	contract := new(SmartContract)
+	stub := shimtest.NewMockStub("governance", nil)
 	ctx := new(MockContext)
 	id := new(MockIdentity)
-	contract :=  SmartContract{}
 
 	// Setup Mocks
 	ctx.On("GetStub").Return(stub)
 	ctx.On("GetClientIdentity").Return(id)
+
+	// --- START THE MOCK TRANSACTION ---
+	stub.MockTransactionStart("tx1")
 
 	// 1. Create a Request
 	reqID := "TX100"
@@ -57,21 +60,26 @@ func TestBFTThreshold(t *testing.T) {
 	assert.NoError(t, err)
 
 	req, _ := contract.GetWithdrawalRequest(ctx, reqID)
+	assert.NotNil(t, req)
 	assert.Equal(t, "PENDING", req.Status)
 
 	// 3. Second Approval (Org2) - Status should stay PENDING
 	id.On("GetMSPID").Return("Org2MSP", nil).Once()
-	contract.ApproveWithdrawal(ctx, reqID)
+	err = contract.ApproveWithdrawal(ctx, reqID)
+	assert.NoError(t, err)
 	
 	req, _ = contract.GetWithdrawalRequest(ctx, reqID)
 	assert.Equal(t, "PENDING", req.Status)
 
 	// 4. Third Approval (Org3) - Threshold met! Status should be APPROVED
-	// Since 2/3 of 4 is 2.66, threshold is 3.
 	id.On("GetMSPID").Return("Org3MSP", nil).Once()
-	contract.ApproveWithdrawal(ctx, reqID)
+	err = contract.ApproveWithdrawal(ctx, reqID)
+	assert.NoError(t, err)
 
 	req, _ = contract.GetWithdrawalRequest(ctx, reqID)
 	assert.Equal(t, "APPROVED", req.Status)
 	assert.Equal(t, 3, len(req.Approvals))
+
+	// --- END THE MOCK TRANSACTION ---
+	stub.MockTransactionEnd("tx1")
 }
