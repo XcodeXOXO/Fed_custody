@@ -1,0 +1,21 @@
+{
+  "name": "public-vault",
+  "version": "1.0.0",
+  "description": "CollebFed Public Vault",
+  "main": "index.js",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "chai": "^4.3.7",
+    "ethers": "^6.10.0",
+    "hardhat": "^2.22.15",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2",
+    "dotenv": "^16.4.5"
+  }
+}
