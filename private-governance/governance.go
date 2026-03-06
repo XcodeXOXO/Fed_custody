@@ -50,7 +50,6 @@ func (s *SmartContract) CreateWithdrawalRequest(ctx contractapi.TransactionConte
 	return ctx.GetStub().PutState(id, requestJSON)
 }
 
-// GetWithdrawalRequest retrieves a specific request from the ledger
 func (s *SmartContract) GetWithdrawalRequest(ctx contractapi.TransactionContextInterface, id string) (*WithdrawalRequest, error) {
 	requestBytes, err := ctx.GetStub().GetState(id)
 	if err != nil {
@@ -69,59 +68,61 @@ func (s *SmartContract) GetWithdrawalRequest(ctx contractapi.TransactionContextI
 	return &request, nil
 }
 
-// ApproveWithdrawal records a bank node's approval and checks the BFT threshold
 func (s *SmartContract) ApproveWithdrawal(ctx contractapi.TransactionContextInterface, id string) error {
-	// 1. Get the MSP ID of the bank node submitting this transaction
 	clientMSPID, err := ctx.GetClientIdentity().GetMSPID()
 	if err != nil {
 		return fmt.Errorf("failed to get client MSP ID: %v", err)
 	}
 
-	// 2. Fetch the existing request
 	request, err := s.GetWithdrawalRequest(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	// 3. Check if it's already finalized
 	if request.Status != "PENDING" {
 		return fmt.Errorf("request %s is already %s", id, request.Status)
 	}
 
-	// 4. Check for duplicate approvals from the same bank
 	for _, approval := range request.Approvals {
 		if approval == clientMSPID {
 			return fmt.Errorf("MSP %s has already approved request %s", clientMSPID, id)
 		}
 	}
 
-	// 5. Apply Governance Rules (Simulated Daily Limit)
-	// In production, we'd query the user's daily rolling total here.
+	// Governance Rule: Daily Limit
 	if request.Amount > 50000 {
 		request.Status = "REJECTED"
 		requestJSON, _ := json.Marshal(request)
 		return ctx.GetStub().PutState(id, requestJSON)
 	}
 
-	// 6. Record the new approval
 	request.Approvals = append(request.Approvals, clientMSPID)
 
-	// 7. Enforce BFT Threshold (Assuming 4 total validators for this MVP)
-	totalValidators := 4
+	// BFT Threshold (Set to 2 for local test-network)
+	totalValidators := 2
 	requiredThreshold := ((totalValidators * 2) / 3) + 1
 
 	if len(request.Approvals) >= requiredThreshold {
 		request.Status = "APPROVED"
-		log.Printf("Request %s has achieved BFT consensus and is APPROVED.", id)
+
+		// Broadcast the event to the Listener
+		requestJSON, err := json.Marshal(request)
+		if err != nil {
+			return err
+		}
+		err = ctx.GetStub().SetEvent("WithdrawalApproved", requestJSON)
+		if err != nil {
+			return err
+		}
 	}
 
-	// 8. Save updated state back to the ledger
-	requestJSON, err := json.Marshal(request)
+	// Finalize and save state
+	updatedRequestJSON, err := json.Marshal(request)
 	if err != nil {
 		return err
 	}
 
-	return ctx.GetStub().PutState(id, requestJSON)
+	return ctx.GetStub().PutState(id, updatedRequestJSON)
 }
 
 func (s *SmartContract) RequestExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
@@ -129,7 +130,6 @@ func (s *SmartContract) RequestExists(ctx contractapi.TransactionContextInterfac
 	if err != nil {
 		return false, fmt.Errorf("failed to read from world state: %v", err)
 	}
-
 	return requestBytes != nil, nil
 }
 
