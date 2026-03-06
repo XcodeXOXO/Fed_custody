@@ -1,7 +1,17 @@
+# Dependencies
 node_modules/
-.env
-dist/
+vendor/
+
+# Hardhat/EVM Build Artifacts
 artifacts/
 cache/
 typechain-types/
+
+# Go Binaries/Builds
 private-governance/collebfed-governance
+*.exe
+*.test
+
+# Environment & OS files
+.env
+.DS_Store

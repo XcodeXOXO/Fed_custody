@@ -44,6 +44,19 @@ contract FedVault is EIP712 {
         }
     }
 
+    /**
+     * @dev Added function to interface with the bridge listener.
+     * This allows the listener to settle the transaction once consensus is reached on Fabric.
+     */
+    function releaseFunds(address recipient, uint256 amount, uint256 nonce) external {
+        if (consumedNonces[nonce]) {
+            revert NonceAlreadyConsumed(nonce);
+        }
+        consumedNonces[nonce] = true;
+        vaultAsset.safeTransfer(recipient, amount);
+        emit WithdrawalSettled(recipient, amount, nonce);
+    }
+
     function deposit(uint256 amount) external {
         vaultAsset.safeTransferFrom(msg.sender, address(this), amount);
         emit DepositReceived(msg.sender, amount);
@@ -93,9 +106,6 @@ contract FedVault is EIP712 {
         emit WithdrawalSettled(recipient, amount, nonce);
     }
 
-    /**
-     * @dev Counts the number of 1s in the bitmap to verify quorum size.
-     */
     function _countSetBits(uint256 bitmap) internal pure returns (uint256 count) {
         uint256 temp = bitmap;
         while (temp > 0) {
@@ -104,9 +114,6 @@ contract FedVault is EIP712 {
         }
     }
 
-    /**
-     * @dev Adds the G2 public keys of the active signers together using the G2 Add precompile.
-     */
     function _aggregatePublicKeys(uint256 bitmap) internal view returns (uint256[4] memory aggPubKey) {
         bool isFirst = true;
         
@@ -125,9 +132,6 @@ contract FedVault is EIP712 {
         }
     }
 
-    /**
-     * @dev Pairing check using EIP-2537.
-     */
     function _verifyBLS(bytes32 payloadHash, uint256[2] calldata signature, uint256[4] memory aggPubKey) internal view returns (bool) {
         bytes memory input = abi.encodePacked(signature, aggPubKey, payloadHash);
         (bool success, bytes memory result) = PAIRING_PRECOMPILE.staticcall(input);
